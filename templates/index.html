@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lottery Prediction</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+</head>
+<body>
+<div class="container my-5">
+    <h1 class="text-center">Lottery Prediction</h1>
+    <div class="container my-5">
+        <!--        <h5 class="text-center">Real-Time Logs</h5>-->
+        <div class="mt-4">
+            <textarea id="logOutput" class="form-control" rows="10" readonly
+                      style="background-color: lightgrey;"></textarea></div>
+        <div class="mt-4">
+            <ul class="nav nav-tabs" id="lotteryTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="powerball-tab" data-bs-toggle="tab" data-bs-target="#powerball"
+                            type="button" role="tab">Powerball
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="mega_millions-tab" data-bs-toggle="tab" data-bs-target="#mega_millions"
+                            type="button" role="tab">Mega Millions
+                    </button>
+                </li>
+            </ul>
+            <div class="tab-content mt-4" id="lotteryTabsContent">
+                <!-- Powerball Tab -->
+                <div class="tab-pane fade show active" id="powerball" role="tabpanel">
+                    <h3>Powerball</h3>
+                    <button class="btn btn-primary" onclick="predict('powerball')">Predict Numbers</button>
+                    <button class="btn btn-primary" onclick="showResults('powerball')">Show Previous Results</button>
+                    <div id="powerball-output" class="mt-4"></div>
+                </div>
+
+                <!-- Mega Millions Tab -->
+                <div class="tab-pane fade" id="mega_millions" role="tabpanel">
+                    <h3>Mega Millions</h3>
+                    <button class="btn btn-primary" onclick="predict('mega_millions')">Predict Numbers</button>
+                    <button class="btn btn-primary" onclick="showResults('mega_millions')">Show Previous Results
+                    </button>
+                    <div id="mega_millions-output" class="mt-4"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function predict(gameType) {
+            const outputId = `${gameType}-output`;
+            let html = '<h5>Predicted Numbers:</h5>';
+            html += '<table class="table table-bordered mt-3">';
+            html += '<thead><tr><th>Strategy</th><th>White Balls</th><th>' +
+                (gameType === 'powerball' ? 'Powerball' : 'Mega Ball') +
+                '</th></tr></thead>';
+            html += '<tbody>';
+
+            // Fetch prediction data from the backend
+            fetch(`/predict/${gameType}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch predictions');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Loop through the predictions and render them
+                    data.predictions.forEach(prediction => {
+                        const numbers = prediction.numbers.join(", ");
+                        const extra = gameType === 'powerball' ? prediction.powerball : prediction.mega_ball;
+                        html += `<tr><td>${prediction.strategy}</td><td>${numbers}</td><td>${extra}</td></tr>`;
+                    });
+
+                    html += '</tbody></table>';
+                    document.getElementById(outputId).innerHTML = html;
+                })
+                .catch(error => {
+                    console.error('Error fetching prediction data:', error);
+                    document.getElementById(outputId).innerHTML = '<p>Failed to load predictions. Please try again later.</p>';
+                });
+        }
+
+
+        function showResults(gameType) {
+            console.log(`Button clicked for: ${gameType}`);
+            console.log(`Fetching results for: ${gameType}`); // Debug: Check if the function is triggered.
+
+            const outputId = `${gameType}-output`;
+            const outputDiv = document.getElementById(outputId);
+
+            // Check if the output div exists
+            if (!outputDiv) {
+                console.error(`Output div not found for: ${outputId}`); // Debug
+                return;
+            }
+            console.log(`Output div found: ${outputId}`); // Debug
+
+            // Fetch results
+            fetch(`/results/${gameType}`)
+                .then(response => {
+                    console.log(`Received response for: ${gameType}`, response.status); // Debug
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch results: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log(`Data received for ${gameType}:`, data); // Debug
+
+                    let html = '<h5>Previous Results:</h5>';
+                    html += '<table class="table table-bordered mt-3">';
+                    html += '<thead><tr><th>Date</th><th>White Balls</th><th>' +
+                        (gameType === 'powerball' ? 'Powerball' : 'Mega Ball') +
+                        '</th></tr></thead>';
+                    html += '<tbody>';
+
+                    data.forEach(result => {
+                        const numbers = result.numbers.join(", ");
+                        const extra = gameType === 'powerball' ? result.powerball : result.mega_ball;
+                        html += `<tr><td>${result.date}</td><td>${numbers}</td><td>${extra}</td></tr>`;
+                    });
+
+                    html += '</tbody></table>';
+                    outputDiv.innerHTML = html;
+
+                    console.log(`Results rendered successfully for: ${gameType}`); // Debug
+                })
+                .catch(error => {
+                    console.error(`Error fetching results for ${gameType}:`, error);
+                    outputDiv.innerHTML = '<p>Failed to load results. Please try again later.</p>';
+                });
+        }
+
+        const logOutput = document.getElementById('logOutput');
+        const eventSource = new EventSource('/train_model_stream');
+
+        eventSource.onmessage = function (event) {
+            logOutput.value += event.data + "\n";
+            logOutput.scrollTop = logOutput.scrollHeight; // Auto-scroll to the bottom
+        };
+
+        eventSource.onerror = function () {
+            // logOutput.value += "Error: Unable to fetch logs.\n";
+            eventSource.close();
+        };
+
+
+    </script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
